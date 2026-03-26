@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Efficiency Report — Effective vs Tracked Hours</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0b0f;
+    --surface: #12131a;
+    --surface-2: #1a1b24;
+    --surface-3: #22232e;
+    --border: #2a2b38;
+    --text: #e8e9f0;
+    --text-dim: #8b8d9e;
+    --text-muted: #5a5c6e;
+    --accent: #6c5ce7;
+    --accent-glow: rgba(108, 92, 231, 0.15);
+    --green: #00d68f;
+    --green-dim: rgba(0, 214, 143, 0.12);
+    --red: #ff6b6b;
+    --red-dim: rgba(255, 107, 107, 0.12);
+    --yellow: #ffd43b;
+    --yellow-dim: rgba(255, 212, 59, 0.12);
+    --blue: #4ecdc4;
+    --blue-dim: rgba(78, 205, 196, 0.12);
+    --font: 'DM Sans', -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* ── Config Panel ── */
+  .config-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(20px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+  }
+  .config-overlay.hidden { display: none; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+  .config-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    width: 560px;
+    max-width: 95vw;
+    animation: slideUp 0.4s ease;
+  }
+  .config-card h2 {
+    font-size: 22px; font-weight: 700;
+    margin-bottom: 6px;
+    background: linear-gradient(135deg, var(--accent), var(--blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .config-card p.sub { color: var(--text-dim); font-size: 13px; margin-bottom: 28px; }
+
+  .form-group { margin-bottom: 18px; }
+  .form-group label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--text-dim); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  .form-group input, .form-group select {
+    width: 100%; padding: 11px 14px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: var(--mono); font-size: 13px;
+    transition: border 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .form-row { display: flex; gap: 14px; }
+  .form-row .form-group { flex: 1; }
+
+  .btn-primary {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    border: none; border-radius: 12px;
+    color: white; font-family: var(--font);
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; margin-top: 8px;
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(108,92,231,0.3); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ── Loading ── */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 999;
+  }
+  .loading-overlay.hidden { display: none; }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--text-dim); margin-top: 18px; font-size: 14px; }
+  .loading-detail { color: var(--text-muted); margin-top: 6px; font-size: 12px; font-family: var(--mono); }
+
+  /* ── Dashboard ── */
+  .dashboard { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+  .dashboard.hidden { display: none; }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 32px; flex-wrap: wrap; gap: 16px;
+  }
+  .header h1 {
+    font-size: 28px; font-weight: 700;
+    background: linear-gradient(135deg, var(--text), var(--text-dim));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header .date-range {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--text-muted); margin-top: 4px;
+  }
+  .header-actions { display: flex; gap: 10px; }
+  .btn-secondary {
+    padding: 9px 18px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text-dim);
+    font-family: var(--font); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-secondary:hover { background: var(--surface-3); color: var(--text); border-color: var(--accent); }
+
+  /* ── Stats Cards ── */
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px; margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px;
+    position: relative; overflow: hidden;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .stat-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .stat-card .label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-muted); margin-bottom: 10px;
+  }
+  .stat-card .value {
+    font-size: 32px; font-weight: 700;
+    font-family: var(--mono); line-height: 1;
+  }
+  .stat-card .unit { font-size: 14px; color: var(--text-dim); margin-left: 4px; }
+  .stat-card .badge {
+    display: inline-block; margin-top: 10px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+  }
+  .stat-card .glow {
+    position: absolute; top: -30px; right: -30px;
+    width: 100px; height: 100px; border-radius: 50%;
+    filter: blur(40px); opacity: 0.15;
+  }
+
+  /* ── Tables ── */
+  .section { margin-bottom: 32px; }
+  .section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+  }
+  .section-title {
+    font-size: 18px; font-weight: 600;
+  }
+  .section-subtitle { color: var(--text-dim); font-size: 13px; margin-top: 2px; }
+
+  .table-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    background: var(--surface-2);
+    padding: 12px 16px; text-align: left;
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--text-muted); border-bottom: 1px solid var(--border);
+    white-space: nowrap; position: sticky; top: 0;
+  }
+  thead th.right { text-align: right; }
+  tbody td {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td.right { text-align: right; font-family: var(--mono); font-size: 12px; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(108, 92, 231, 0.04); }
+  tbody tr.total-row {
+    background: var(--surface-2); font-weight: 600;
+  }
+
+  .eff-bar {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+  }
+  .eff-bar .bar-track {
+    width: 80px; height: 6px; background: var(--surface-3);
+    border-radius: 3px; overflow: hidden;
+  }
+  .eff-bar .bar-fill {
+    height: 100%; border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  .eff-bar.high .bar-fill { background: var(--green); }
+  .eff-bar.mid .bar-fill { background: var(--yellow); }
+  .eff-bar.low .bar-fill { background: var(--red); }
+  .eff-bar.high { color: var(--green); }
+  .eff-bar.mid { color: var(--yellow); }
+  .eff-bar.low { color: var(--red); }
+
+  .client-name { font-weight: 600; color: var(--text); }
+  .user-name { color: var(--text); }
+  .no-data { color: var(--text-muted); font-style: italic; }
+
+  /* ── Filter / Search ── */
+  .filter-bar {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  }
+  .search-input {
+    padding: 8px 14px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--font); font-size: 13px;
+    outline: none; min-width: 220px;
+    transition: border 0.2s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text-muted); }
+
+  .filter-chip {
+    padding: 6px 14px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 20px;
+    color: var(--text-dim); font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .filter-chip:hover, .filter-chip.active {
+    background: var(--accent-glow); border-color: var(--accent); color: var(--accent);
+  }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 2px; margin-bottom: 24px; }
+  .tab {
+    padding: 10px 20px; background: transparent;
+    border: none; border-bottom: 2px solid transparent;
+    color: var(--text-dim); font-family: var(--font);
+    font-size: 14px; font-weight: 500; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── User Detail Panel ── */
+  .user-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .user-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px;
+    transition: border 0.2s;
+  }
+  .user-card:hover { border-color: var(--accent); }
+  .user-card .name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .user-card .email { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+  .user-card .metrics {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  }
+  .user-card .metric .mlabel { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); }
+  .user-card .metric .mval { font-family: var(--mono); font-size: 18px; font-weight: 600; margin-top: 2px; }
+
+  /* ── Error ── */
+  .error-box {
+    background: var(--red-dim); border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 12px; padding: 16px 20px;
+    color: var(--red); font-size: 13px; margin-top: 14px;
+    display: none;
+  }
+  .error-box.show { display: block; }
+
+  /* ── Print ── */
+  @media print {
+    body { background: white; color: #1a1a1a; }
+    .config-overlay, .loading-overlay, .header-actions { display: none !important; }
+    .stat-card, .table-wrap, .user-card { border-color: #ddd; }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .dashboard { padding: 16px 12px; }
+    .header h1 { font-size: 22px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .user-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════ CONFIG OVERLAY ═══════ -->
+<div class="config-overlay" id="configOverlay">
+  <div class="config-card">
+    <h2>Efficiency Report</h2>
+    <p class="sub">Connect your Google Sheet + Clockify to generate the report</p>
+
+    <div class="form-group">
+      <label>Google Sheet ID</label>
+      <input type="text" id="sheetId" value="1lWUW9ifghREIPtU_sS466OodaGbqFFpPH84VO3103EM" placeholder="e.g. 1lWUW9if...">
+    </div>
+    <div class="form-group">
+      <label>Summary Sheet Tab Name</label>
+      <input type="text" id="sheetTab" value="Current Week Summary" placeholder="e.g. Current Week Summary">
+    </div>
+    <div class="form-group">
+      <label>Clockify API Key</label>
+      <input type="password" id="clockifyKey" value="M2M4OGMyNzQtZTVmZi00MTJiLTlkZjEtNzVhOGQ3NWM2MGQ4" placeholder="Your Clockify API key">
+    </div>
+    <div class="form-group">
+      <label>Clockify Workspace ID</label>
+      <input type="text" id="workspaceId" value="635d4f681812945e3eca2dd8" placeholder="e.g. 635d4f68...">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Date</label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="form-group">
+        <label>End Date</label>
+        <input type="date" id="endDate">
+      </div>
+    </div>
+
+    <div class="error-box" id="configError"></div>
+    <button class="btn-primary" id="generateBtn" onclick="generateReport()">
+      Generate Efficiency Report
+    </button>
+  </div>
+</div>
+
+<!-- ═══════ LOADING ═══════ -->
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Fetching data...</div>
+  <div class="loading-detail" id="loadingDetail"></div>
+</div>
+
+<!-- ═══════ DASHBOARD ═══════ -->
+<div class="dashboard hidden" id="dashboard">
+  <div class="header">
+    <div>
+      <h1>Efficiency Report</h1>
+      <div class="date-range" id="dateRangeLabel"></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-secondary" onclick="window.print()">⎙ Print</button>
+      <button class="btn-secondary" onclick="exportCSV()">↓ Export CSV</button>
+      <button class="btn-secondary" onclick="location.reload()">↻ Reconfigure</button>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="clients" onclick="switchTab('clients')">By Client</button>
+    <button class="tab" data-tab="users" onclick="switchTab('users')">By User</button>
+    <button class="tab" data-tab="detailed" onclick="switchTab('detailed')">Detailed</button>
+  </div>
+
+  <!-- Client View -->
+  <div class="section" id="clientsTab">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Client Efficiency</div>
+        <div class="section-subtitle">Effective hours (Google Sheet) vs Tracked hours (Clockify)</div>
+      </div>
+      <div class="filter-bar">
+        <input class="search-input" placeholder="Search clients..." id="clientSearch" oninput="filterClients()">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th class="right">Effective Hrs</th>
+              <th class="right">Tracked Hrs</th>
+              <th class="right">Difference</th>
+              <th class="right">Efficiency</th>
+            </tr>
+          </thead>
+          <tbody id="clientTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Users View -->
+  <div class="section hidden" id="usersTab">
+    <div class="section-header">
+      <div>
+        <div class="section-title">User Performance</div>
+        <div class="section-subtitle">Total tracked hours per team member from Clockify</div>
+      </div>
+      <div class="filter-bar">
+        <input class="search-input" placeholder="Search users..." id="userSearch" oninput="filterUsers()">
+      </div>
+    </div>
+    <div class="user-grid" id="userGrid"></div>
+  </div>
+
+  <!-- Detailed View -->
+  <div class="section hidden" id="detailedTab">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Detailed Breakdown</div>
+        <div class="section-subtitle">Per-user hours per client — Clockify tracked vs Sheet effective</div>
+      </div>
+      <div class="filter-bar">
+        <input class="search-input" placeholder="Search..." id="detailSearch" oninput="filterDetailed()">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Client</th>
+              <th class="right">Tracked Hrs</th>
+              <th class="right">Effective Hrs</th>
+              <th class="right">Efficiency</th>
+            </tr>
+          </thead>
+          <tbody id="detailedTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// DATA STORE
+// ═══════════════════════════════════════
+let REPORT_DATA = {
+  sheetClients: {},      // { clientName: totalEffectiveHrs }
+  sheetUsersByClient: {}, // { clientName: { userName: effectiveHrs } }
+  clockifyByClient: {},  // { clientName: totalTrackedHrs }
+  clockifyByUser: {},    // { userName: { totalHrs, clients: { clientName: hrs } } }
+  clockifyUsers: [],
+  dateRange: { start: '', end: '' }
+};
+
+// ═══════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════
+(function init() {
+  // Set default dates to current week (Mon-Sun)
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now.setDate(diff));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  document.getElementById('startDate').value = formatDateISO(monday);
+  document.getElementById('endDate').value = formatDateISO(sunday);
+})();
+
+function formatDateISO(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function formatDateDisplay(s) {
+  const d = new Date(s + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ═══════════════════════════════════════
+// FETCH GOOGLE SHEET DATA
+// ═══════════════════════════════════════
+async function fetchSheetData(sheetId, tabName) {
+  updateLoading('Fetching Google Sheet data...', `Tab: ${tabName}`);
+
+  // Use the Google Visualization API query (works for public/shared sheets)
+  const encodedTab = encodeURIComponent(tabName);
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodedTab}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Sheet fetch failed: ${response.status}`);
+    const csvText = await response.text();
+    return parseCSV(csvText);
+  } catch (err) {
+    console.error('Sheet fetch error:', err);
+    // Fallback: try JSON format
+    const jsonUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodedTab}`;
+    try {
+      const resp = await fetch(jsonUrl);
+      const text = await resp.text();
+      // Strip the google.visualization.Query.setResponse() wrapper
+      const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?/)?.[1] || text);
+      return parseGvizJSON(json);
+    } catch (err2) {
+      throw new Error(`Cannot fetch Google Sheet. Make sure the sheet is shared as "Anyone with the link". Error: ${err2.message}`);
+    }
+  }
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let current = '';
+  let inQuotes = false;
+  const result = [];
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        current += '"'; i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      rows.push(current); current = '';
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (current || rows.length > 0) {
+        rows.push(current); result.push([...rows]); rows.length = 0; current = '';
+      }
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+    } else {
+      current += ch;
+    }
+  }
+  if (current || rows.length > 0) { rows.push(current); result.push(rows); }
+  return result;
+}
+
+function parseGvizJSON(json) {
+  if (!json.table) return [];
+  const rows = [];
+  const cols = json.table.cols;
+  for (const row of json.table.rows) {
+    const r = row.c.map((cell, i) => {
+      if (!cell) return '';
+      return cell.f || (cell.v != null ? String(cell.v) : '');
+    });
+    rows.push(r);
+  }
+  return rows;
+}
+
+async function fetchAllSheetTabs(sheetId) {
+  updateLoading('Fetching sheet tab list...', '');
+
+  // Get the spreadsheet metadata to find all sheet names
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=Index`;
+  // We already know the tabs from the HTML - let's try to get them via the gviz API
+  // Actually, let's fetch the sheet list by trying a metadata approach
+  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`;
+
+  try {
+    const resp = await fetch(metaUrl);
+    if (resp.ok) {
+      const data = await resp.json();
+      return data.sheets.map(s => s.properties.title);
+    }
+  } catch (e) {}
+
+  // Fallback: return known tabs from the HTML we fetched
+  return null;
+}
+
+// ═══════════════════════════════════════
+// FETCH CLOCKIFY DATA
+// ═══════════════════════════════════════
+const CLOCKIFY_BASE = 'https://api.clockify.me/api/v1';
+const REPORTS_BASE = 'https://reports.api.clockify.me/v1';
+
+async function clockifyFetch(url, apiKey, options = {}) {
+  const resp = await fetch(url, {
+    ...options,
+    headers: {
+      'X-Api-Key': apiKey,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Clockify API error (${resp.status}): ${errText}`);
+  }
+  return resp.json();
+}
+
+async function fetchClockifyUsers(apiKey, workspaceId) {
+  updateLoading('Fetching Clockify users...', '');
+  return clockifyFetch(`${CLOCKIFY_BASE}/workspaces/${workspaceId}/users?page-size=200`, apiKey);
+}
+
+async function fetchClockifyClients(apiKey, workspaceId) {
+  updateLoading('Fetching Clockify clients...', '');
+  return clockifyFetch(`${CLOCKIFY_BASE}/workspaces/${workspaceId}/clients?page-size=200`, apiKey);
+}
+
+async function fetchClockifyTimeEntries(apiKey, workspaceId, startDate, endDate) {
+  updateLoading('Fetching Clockify time entries...', 'This may take a moment...');
+
+  // Use the detailed report endpoint for comprehensive data
+  const payload = {
+    dateRangeStart: `${startDate}T00:00:00.000Z`,
+    dateRangeEnd: `${endDate}T23:59:59.999Z`,
+    detailedFilter: {
+      page: 1,
+      pageSize: 1000,
+      sortColumn: 'DATE'
+    },
+    exportType: 'JSON'
+  };
+
+  try {
+    const data = await clockifyFetch(
+      `${REPORTS_BASE}/workspaces/${workspaceId}/reports/detailed`,
+      apiKey,
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+
+    let allEntries = data.timeentries || [];
+
+    // Paginate if needed
+    const totalCount = data.totals?.[0]?.entriesCount || allEntries.length;
+    let page = 2;
+    while (allEntries.length < totalCount && page <= 20) {
+      updateLoading('Fetching Clockify time entries...', `Page ${page}...`);
+      payload.detailedFilter.page = page;
+      const moreData = await clockifyFetch(
+        `${REPORTS_BASE}/workspaces/${workspaceId}/reports/detailed`,
+        apiKey,
+        { method: 'POST', body: JSON.stringify(payload) }
+      );
+      const moreEntries = moreData.timeentries || [];
+      if (moreEntries.length === 0) break;
+      allEntries = allEntries.concat(moreEntries);
+      page++;
+    }
+
+    return allEntries;
+  } catch (err) {
+    // Fallback: use the regular time entries endpoint
+    console.warn('Detailed report failed, using regular endpoint:', err);
+    return fetchClockifyTimeEntriesFallback(apiKey, workspaceId, startDate, endDate);
+  }
+}
+
+async function fetchClockifyTimeEntriesFallback(apiKey, workspaceId, startDate, endDate) {
+  const users = REPORT_DATA.clockifyUsers;
+  const allEntries = [];
+
+  for (let i = 0; i < users.length; i++) {
+    const user = users[i];
+    updateLoading('Fetching time entries...', `User ${i + 1}/${users.length}: ${user.name}`);
+
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const entries = await clockifyFetch(
+        `${CLOCKIFY_BASE}/workspaces/${workspaceId}/user/${user.id}/time-entries?start=${startDate}T00:00:00Z&end=${endDate}T23:59:59Z&page-size=200&page=${page}`,
+        apiKey
+      );
+      for (const entry of entries) {
+        entry._userName = user.name;
+        entry._userId = user.id;
+      }
+      allEntries.push(...entries);
+      hasMore = entries.length === 200;
+      page++;
+    }
+  }
+
+  return allEntries;
+}
+
+// ═══════════════════════════════════════
+// PROCESS DATA
+// ═══════════════════════════════════════
+function processSheetData(rows) {
+  // The summary sheet has: Client Name | Date1 | Date2 | ... | Total
+  const clients = {};
+  if (!rows || rows.length < 2) return clients;
+
+  // Find the "Total" column index
+  const header = rows[0];
+  let totalIdx = header.findIndex(h => h && h.toLowerCase().includes('total'));
+  if (totalIdx < 0) totalIdx = header.length - 1;
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const name = (row[0] || '').trim();
+    if (!name) continue;
+
+    let total = parseFloat(row[totalIdx]);
+    if (isNaN(total)) {
+      // Sum all numeric columns
+      total = 0;
+      for (let j = 1; j < row.length; j++) {
+        const val = parseFloat(row[j]);
+        if (!isNaN(val)) total += val;
+      }
+    }
+    clients[name] = total;
+  }
+  return clients;
+}
+
+function processClockifyData(entries, clients) {
+  // Build lookup: clientId -> clientName
+  const clientMap = {};
+  for (const c of clients) {
+    clientMap[c.id] = c.name;
+  }
+
+  const byClient = {};
+  const byUser = {};
+
+  for (const entry of entries) {
+    let duration = 0;
+    let userName = '';
+    let clientName = '';
+
+    // Handle detailed report format
+    if (entry.timeInterval) {
+      const start = new Date(entry.timeInterval.start);
+      const end = new Date(entry.timeInterval.end);
+      duration = (end - start) / 3600000; // hours
+    } else if (entry.duration != null) {
+      // Duration in seconds or PT format
+      if (typeof entry.duration === 'number') {
+        duration = entry.duration / 3600;
+      } else if (typeof entry.duration === 'string') {
+        duration = parsePTDuration(entry.duration);
+      }
+    }
+
+    // Get user name
+    userName = entry._userName || entry.userName || entry.userEmail || 'Unknown';
+
+    // Get client name
+    if (entry.clientName) {
+      clientName = entry.clientName;
+    } else if (entry.clientId && clientMap[entry.clientId]) {
+      clientName = clientMap[entry.clientId];
+    } else if (entry.projectName) {
+      clientName = entry.projectName;
+    } else {
+      clientName = 'No Client';
+    }
+
+    if (duration <= 0) continue;
+
+    // Aggregate by client
+    byClient[clientName] = (byClient[clientName] || 0) + duration;
+
+    // Aggregate by user
+    if (!byUser[userName]) {
+      byUser[userName] = { totalHrs: 0, clients: {} };
+    }
+    byUser[userName].totalHrs += duration;
+    byUser[userName].clients[clientName] = (byUser[userName].clients[clientName] || 0) + duration;
+  }
+
+  return { byClient, byUser };
+}
+
+function parsePTDuration(pt) {
+  // Parse ISO 8601 duration: PT1H30M15S
+  const match = pt.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  return (parseInt(match[1] || 0)) + (parseInt(match[2] || 0)) / 60 + (parseInt(match[3] || 0)) / 3600;
+}
+
+// ═══════════════════════════════════════
+// GENERATE REPORT
+// ═══════════════════════════════════════
+async function generateReport() {
+  const sheetId = document.getElementById('sheetId').value.trim();
+  const sheetTab = document.getElementById('sheetTab').value.trim();
+  const apiKey = document.getElementById('clockifyKey').value.trim();
+  const workspaceId = document.getElementById('workspaceId').value.trim();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+
+  // Validate
+  if (!sheetId || !apiKey || !workspaceId || !startDate || !endDate) {
+    showError('Please fill in all fields.');
+    return;
+  }
+
+  hideError();
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('configOverlay').classList.add('hidden');
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+
+  REPORT_DATA.dateRange = { start: startDate, end: endDate };
+
+  try {
+    // 1. Fetch Google Sheet summary
+    const sheetRows = await fetchSheetData(sheetId, sheetTab);
+    REPORT_DATA.sheetClients = processSheetData(sheetRows);
+    console.log('Sheet clients:', REPORT_DATA.sheetClients);
+
+    // 2. Fetch Clockify users
+    const users = await fetchClockifyUsers(apiKey, workspaceId);
+    REPORT_DATA.clockifyUsers = users;
+    console.log('Clockify users:', users.length);
+
+    // 3. Fetch Clockify clients
+    const clients = await fetchClockifyClients(apiKey, workspaceId);
+    console.log('Clockify clients:', clients.length);
+
+    // 4. Fetch Clockify time entries
+    const entries = await fetchClockifyTimeEntries(apiKey, workspaceId, startDate, endDate);
+    console.log('Time entries:', entries.length);
+
+    // 5. Process Clockify data
+    const { byClient, byUser } = processClockifyData(entries, clients);
+    REPORT_DATA.clockifyByClient = byClient;
+    REPORT_DATA.clockifyByUser = byUser;
+    console.log('By client:', byClient);
+    console.log('By user:', byUser);
+
+    // 6. Render the dashboard
+    renderDashboard();
+
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+
+  } catch (err) {
+    console.error('Report generation failed:', err);
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    document.getElementById('configOverlay').classList.remove('hidden');
+    document.getElementById('generateBtn').disabled = false;
+    showError(`Failed to generate report: ${err.message}`);
+  }
+}
+
+// ═══════════════════════════════════════
+// RENDER DASHBOARD
+// ═══════════════════════════════════════
+function renderDashboard() {
+  const { sheetClients, clockifyByClient, clockifyByUser, dateRange } = REPORT_DATA;
+
+  // Date range label
+  document.getElementById('dateRangeLabel').textContent =
+    `${formatDateDisplay(dateRange.start)} → ${formatDateDisplay(dateRange.end)}`;
+
+  // Compute totals
+  const totalEffective = Object.values(sheetClients).reduce((s, v) => s + v, 0);
+  const totalTracked = Object.values(clockifyByClient).reduce((s, v) => s + v, 0);
+  const overallEff = totalEffective > 0 ? (totalTracked / totalEffective * 100) : 0;
+  const clientCount = new Set([...Object.keys(sheetClients), ...Object.keys(clockifyByClient)]).size;
+  const userCount = Object.keys(clockifyByUser).length;
+
+  // Stats cards
+  const statsHTML = `
+    <div class="stat-card">
+      <div class="glow" style="background: var(--blue);"></div>
+      <div class="label">Effective Hours</div>
+      <div class="value">${totalEffective.toFixed(1)}<span class="unit">hrs</span></div>
+      <div class="badge" style="background:var(--blue-dim);color:var(--blue);">From Google Sheet</div>
+    </div>
+    <div class="stat-card">
+      <div class="glow" style="background: var(--accent);"></div>
+      <div class="label">Tracked Hours</div>
+      <div class="value">${totalTracked.toFixed(1)}<span class="unit">hrs</span></div>
+      <div class="badge" style="background:var(--accent-glow);color:var(--accent);">From Clockify</div>
+    </div>
+    <div class="stat-card">
+      <div class="glow" style="background: ${overallEff >= 80 ? 'var(--green)' : overallEff >= 50 ? 'var(--yellow)' : 'var(--red)'};"></div>
+      <div class="label">Overall Efficiency</div>
+      <div class="value" style="color:${overallEff >= 80 ? 'var(--green)' : overallEff >= 50 ? 'var(--yellow)' : 'var(--red)'};">${overallEff.toFixed(1)}<span class="unit">%</span></div>
+      <div class="badge" style="background:${overallEff >= 80 ? 'var(--green-dim)' : overallEff >= 50 ? 'var(--yellow-dim)' : 'var(--red-dim)'};color:${overallEff >= 80 ? 'var(--green)' : overallEff >= 50 ? 'var(--yellow)' : 'var(--red)'};">
+        ${overallEff >= 80 ? '● On Track' : overallEff >= 50 ? '● Needs Review' : '● Below Target'}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="glow" style="background: var(--yellow);"></div>
+      <div class="label">Active</div>
+      <div class="value">${clientCount}<span class="unit">clients</span></div>
+      <div class="badge" style="background:var(--yellow-dim);color:var(--yellow);">${userCount} team members</div>
+    </div>
+  `;
+  document.getElementById('statsGrid').innerHTML = statsHTML;
+
+  // Client table
+  renderClientTable();
+
+  // User grid
+  renderUserGrid();
+
+  // Detailed table
+  renderDetailedTable();
+}
+
+function renderClientTable() {
+  const { sheetClients, clockifyByClient } = REPORT_DATA;
+  const search = (document.getElementById('clientSearch')?.value || '').toLowerCase();
+
+  // Merge all client names
+  const allClients = [...new Set([...Object.keys(sheetClients), ...Object.keys(clockifyByClient)])].sort();
+
+  let html = '';
+  let totalEff = 0, totalTracked = 0;
+
+  for (const name of allClients) {
+    if (search && !name.toLowerCase().includes(search)) continue;
+
+    const effective = sheetClients[name] || 0;
+    const tracked = clockifyByClient[name] || 0;
+    const diff = tracked - effective;
+    const eff = effective > 0 ? (tracked / effective * 100) : (tracked > 0 ? 100 : 0);
+    const effClass = eff >= 80 ? 'high' : eff >= 50 ? 'mid' : 'low';
+
+    totalEff += effective;
+    totalTracked += tracked;
+
+    html += `<tr>
+      <td class="client-name">${esc(name)}</td>
+      <td class="right">${effective.toFixed(2)}</td>
+      <td class="right">${tracked.toFixed(2)}</td>
+      <td class="right" style="color:${diff >= 0 ? 'var(--green)' : 'var(--red)'};">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}</td>
+      <td class="right">
+        <div class="eff-bar ${effClass}">
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.min(eff, 100)}%;"></div></div>
+          <span>${eff.toFixed(0)}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  // Total row
+  const totalDiff = totalTracked - totalEff;
+  const totalEffPct = totalEff > 0 ? (totalTracked / totalEff * 100) : 0;
+  const totalClass = totalEffPct >= 80 ? 'high' : totalEffPct >= 50 ? 'mid' : 'low';
+
+  html += `<tr class="total-row">
+    <td>TOTAL</td>
+    <td class="right">${totalEff.toFixed(2)}</td>
+    <td class="right">${totalTracked.toFixed(2)}</td>
+    <td class="right" style="color:${totalDiff >= 0 ? 'var(--green)' : 'var(--red)'};">${totalDiff >= 0 ? '+' : ''}${totalDiff.toFixed(2)}</td>
+    <td class="right">
+      <div class="eff-bar ${totalClass}">
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min(totalEffPct, 100)}%;"></div></div>
+        <span>${totalEffPct.toFixed(0)}%</span>
+      </div>
+    </td>
+  </tr>`;
+
+  document.getElementById('clientTableBody').innerHTML = html;
+}
+
+function renderUserGrid() {
+  const { clockifyByUser } = REPORT_DATA;
+  const search = (document.getElementById('userSearch')?.value || '').toLowerCase();
+
+  const users = Object.entries(clockifyByUser)
+    .sort((a, b) => b[1].totalHrs - a[1].totalHrs);
+
+  let html = '';
+  for (const [name, data] of users) {
+    if (search && !name.toLowerCase().includes(search)) continue;
+
+    const clientCount = Object.keys(data.clients).length;
+    const avgPerClient = clientCount > 0 ? (data.totalHrs / clientCount) : 0;
+
+    // Top client
+    let topClient = '-';
+    let topHrs = 0;
+    for (const [c, h] of Object.entries(data.clients)) {
+      if (h > topHrs) { topHrs = h; topClient = c; }
+    }
+
+    html += `<div class="user-card">
+      <div class="name">${esc(name)}</div>
+      <div class="email">${clientCount} client${clientCount !== 1 ? 's' : ''} · Top: ${esc(topClient)}</div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="mlabel">Total Hrs</div>
+          <div class="mval" style="color:var(--accent);">${data.totalHrs.toFixed(1)}</div>
+        </div>
+        <div class="metric">
+          <div class="mlabel">Avg/Client</div>
+          <div class="mval" style="color:var(--blue);">${avgPerClient.toFixed(1)}</div>
+        </div>
+        <div class="metric">
+          <div class="mlabel">Top Client</div>
+          <div class="mval" style="color:var(--yellow);">${topHrs.toFixed(1)}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (!html) html = '<p class="no-data" style="padding: 20px;">No user data found for this period.</p>';
+  document.getElementById('userGrid').innerHTML = html;
+}
+
+function renderDetailedTable() {
+  const { clockifyByUser, sheetClients } = REPORT_DATA;
+  const search = (document.getElementById('detailSearch')?.value || '').toLowerCase();
+
+  let html = '';
+  const rows = [];
+
+  for (const [userName, data] of Object.entries(clockifyByUser)) {
+    for (const [clientName, hrs] of Object.entries(data.clients)) {
+      rows.push({ userName, clientName, tracked: hrs });
+    }
+  }
+
+  rows.sort((a, b) => b.tracked - a.tracked);
+
+  for (const row of rows) {
+    if (search && !row.userName.toLowerCase().includes(search) && !row.clientName.toLowerCase().includes(search)) continue;
+
+    const effective = sheetClients[row.clientName] || 0;
+    const eff = effective > 0 ? (row.tracked / effective * 100) : 0;
+    const effClass = eff >= 80 ? 'high' : eff >= 50 ? 'mid' : 'low';
+
+    html += `<tr>
+      <td class="user-name">${esc(row.userName)}</td>
+      <td class="client-name">${esc(row.clientName)}</td>
+      <td class="right">${row.tracked.toFixed(2)}</td>
+      <td class="right">${effective > 0 ? effective.toFixed(2) : '<span class="no-data">—</span>'}</td>
+      <td class="right">${effective > 0 ? `<div class="eff-bar ${effClass}">
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min(eff, 100)}%;"></div></div>
+        <span>${eff.toFixed(0)}%</span>
+      </div>` : '<span class="no-data">—</span>'}</td>
+    </tr>`;
+  }
+
+  document.getElementById('detailedTableBody').innerHTML = html;
+}
+
+// ═══════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════
+function switchTab(tabName) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+
+  document.getElementById('clientsTab').classList.toggle('hidden', tabName !== 'clients');
+  document.getElementById('usersTab').classList.toggle('hidden', tabName !== 'users');
+  document.getElementById('detailedTab').classList.toggle('hidden', tabName !== 'detailed');
+}
+
+function filterClients() { renderClientTable(); }
+function filterUsers() { renderUserGrid(); }
+function filterDetailed() { renderDetailedTable(); }
+
+function updateLoading(text, detail) {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingDetail').textContent = detail;
+}
+
+function showError(msg) {
+  const el = document.getElementById('configError');
+  el.textContent = msg; el.classList.add('show');
+}
+function hideError() {
+  document.getElementById('configError').classList.remove('show');
+}
+
+function esc(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// ═══════════════════════════════════════
+// EXPORT CSV
+// ═══════════════════════════════════════
+function exportCSV() {
+  const { sheetClients, clockifyByClient } = REPORT_DATA;
+  const allClients = [...new Set([...Object.keys(sheetClients), ...Object.keys(clockifyByClient)])].sort();
+
+  let csv = 'Client,Effective Hours,Tracked Hours,Difference,Efficiency %\n';
+  for (const name of allClients) {
+    const eff = sheetClients[name] || 0;
+    const tracked = clockifyByClient[name] || 0;
+    const diff = tracked - eff;
+    const pct = eff > 0 ? (tracked / eff * 100) : 0;
+    csv += `"${name}",${eff.toFixed(2)},${tracked.toFixed(2)},${diff.toFixed(2)},${pct.toFixed(1)}\n`;
+  }
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `efficiency-report-${REPORT_DATA.dateRange.start}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
